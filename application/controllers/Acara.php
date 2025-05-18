@@ -162,4 +162,36 @@ class Acara extends CI_Controller {
         
         redirect('acara');
     }
+    
+    public function check_conflict()
+    {
+        $tanggal = $this->input->post('tanggal');
+        $waktu = $this->input->post('waktu');
+        $tempat = $this->input->post('tempat');
+        $current_id = $this->input->post('current_id');
+    
+        // Check if there's any existing event at the same time and place
+        $this->db->where('tanggal', $tanggal);
+        $this->db->where('waktu', $waktu);
+        $this->db->where('tempat', $tempat);
+        if ($current_id) {
+            $this->db->where('id_acara !=', $current_id); // Exclude current event when editing
+        }
+        $existing_event = $this->db->get('acara')->row();
+    
+        header('Content-Type: application/json');
+        if (!empty($existing_event)) {
+            echo json_encode([
+                'conflict' => true,
+                'message' => 'Sudah ada acara lain pada waktu dan tempat yang sama.',
+                'title' => 'Peringatan!'
+            ]);
+        } else {
+            echo json_encode([
+                'conflict' => false,
+                'message' => 'Waktu dan tempat tersedia.',
+                'title' => 'Berhasil!'
+            ]);
+        }
+    }
 }

@@ -14,7 +14,7 @@
     <?php endif; ?>
     
     <div class="bg-white rounded-lg shadow p-6">
-        <form action="<?= base_url('acara/update/'.$acara->id_acara) ?>" method="post" enctype="multipart/form-data">
+        <form action="<?= base_url('acara/update/'.$acara->id_acara) ?>" method="post" enctype="multipart/form-data" id="acaraForm">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="col-span-2">
                     <label for="nama_acara" class="block text-sm font-medium text-gray-700 mb-1">Nama Acara <span class="text-red-500">*</span></label>
@@ -28,7 +28,32 @@
                 
                 <div>
                     <label for="waktu" class="block text-sm font-medium text-gray-700 mb-1">Waktu <span class="text-red-500">*</span></label>
-                    <input type="time" id="waktu" name="waktu" value="<?= substr($acara->waktu, 0, 5) ?>" class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50" required>
+                    
+                    <!-- Input tersembunyi untuk menyimpan nilai sebenarnya -->
+                    <input type="hidden" id="waktu_value" name="waktu" value="<?= substr($acara->waktu, 0, 5) ?>" required>
+                    
+                    <!-- Div kustom untuk tampilan waktu format 24 jam -->
+                    <div class="relative">
+                        <input type="text" id="waktu_display"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50 cursor-pointer"
+                            readonly placeholder="00:00" value="<?= substr($acara->waktu, 0, 5) ?>" required>
+                        <div id="jam_picker" class="hidden absolute mt-1 w-1/4 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                            <div class="flex">
+                                <!-- Jam -->
+                                <div class="w-1/2 h-48 overflow-y-auto border-r">
+                                    <div id="jam_list" class="py-1">
+                                        <!-- Jam 00-23 akan ditambahkan melalui JavaScript -->
+                                    </div>
+                                </div>
+                                <!-- Menit -->
+                                <div class="w-1/2 h-48 overflow-y-auto">
+                                    <div id="menit_list" class="py-1">
+                                        <!-- Menit 00-59 akan ditambahkan melalui JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div>
@@ -67,3 +92,114 @@
         </form>
     </div>
 </div>
+
+<script>
+    // Fungsi untuk menambahkan nol di depan angka < 10
+    function pad(num) {
+        return num < 10 ? '0' + num : num;
+    }
+    
+    // Elemen-elemen
+    const waktuDisplay = document.getElementById('waktu_display');
+    const waktuValue = document.getElementById('waktu_value');
+    const jamPicker = document.getElementById('jam_picker');
+    const jamList = document.getElementById('jam_list');
+    const menitList = document.getElementById('menit_list');
+    
+    // Buat opsi jam (00-23)
+    for (let i = 0; i < 24; i++) {
+        const jamItem = document.createElement('div');
+        jamItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-center';
+        jamItem.textContent = pad(i);
+        jamItem.onclick = function() {
+            selectJam(i);
+        };
+        jamList.appendChild(jamItem);
+    }
+    
+    // Buat opsi menit (00-59)
+    for (let i = 0; i < 60; i++) {
+        const menitItem = document.createElement('div');
+        menitItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-center';
+        menitItem.textContent = pad(i);
+        menitItem.onclick = function() {
+            selectMenit(i);
+        };
+        menitList.appendChild(menitItem);
+    }
+    
+    // Set nilai awal dari database
+    const initialTime = '<?= substr($acara->waktu, 0, 5) ?>'.split(':');
+    let selectedJam = parseInt(initialTime[0]);
+    let selectedMenit = parseInt(initialTime[1]);
+    
+    // Tampilkan atau sembunyikan picker
+    waktuDisplay.onclick = function() {
+        jamPicker.classList.toggle('hidden');
+    };
+    
+    // Tutup picker saat klik di luar
+    document.addEventListener('click', function(event) {
+        if (!waktuDisplay.contains(event.target) && !jamPicker.contains(event.target)) {
+            jamPicker.classList.add('hidden');
+        }
+    });
+    
+    // Pilih jam
+    function selectJam(jam) {
+        selectedJam = jam;
+        updateDisplay();
+    }
+    
+    // Pilih menit
+    function selectMenit(menit) {
+        selectedMenit = menit;
+        updateDisplay();
+        
+        // Jika kedua-duanya sudah dipilih, sembunyikan picker
+        if (selectedJam !== null && selectedMenit !== null) {
+            jamPicker.classList.add('hidden');
+        }
+    }
+    
+    // Update tampilan dan nilai
+    function updateDisplay() {
+        if (selectedJam !== null && selectedMenit !== null) {
+            const waktu = `${pad(selectedJam)}:${pad(selectedMenit)}`;
+            waktuDisplay.value = waktu;
+            waktuValue.value = waktu;
+        }
+    }
+
+    // Form conflict checking
+    document.getElementById('acaraForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const tanggal = document.getElementById('tanggal').value;
+        const waktu = document.getElementById('waktu_value').value;
+        const tempat = document.getElementById('tempat').value;
+        const currentId = '<?= $acara->id_acara ?>';
+
+        try {
+            const response = await fetch('<?= base_url('acara/check_conflict') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `tanggal=${tanggal}&waktu=${waktu}&tempat=${tempat}&current_id=${currentId}`
+            });
+
+            const data = await response.json();
+            
+            if (data.conflict) {
+                alert(data.message);
+                return false;
+            } else {
+                this.submit();
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan saat memeriksa jadwal');
+        }
+    });
+</script>
